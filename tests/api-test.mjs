@@ -1,0 +1,23 @@
+// API tekshiruvi (haqiqiy handlerlar, soxta Redis): parol, kv, versiya to'qnashuvi.
+import { makeServer, installFakeRedis, setEnv } from './dev-server.mjs';
+setEnv(); installFakeRedis();
+const srv = makeServer(); await new Promise((r) => srv.listen(0, r));
+const B = 'http://127.0.0.1:' + srv.address().port, bad = [];
+const chk = (c, m) => { if (!c) bad.push(m); };
+const call = (p, o = {}, key = 'test1234') => fetch(B + p, { ...o, headers: { 'content-type': 'application/json', ...(key ? { 'x-key': key } : {}), ...(o.headers || {}) } });
+let r = await (await fetch(B + '/api/ping')).json();
+chk(r.cloud && r.missing.length === 0 && r.mediaBase === 'https://teststore123.public.blob.vercel-storage.com', 'ping noto‘g‘ri: ' + JSON.stringify(r));
+chk((await call('/api/kv?k=state', {}, '')).status === 401, 'parolsiz so‘rov o‘tib ketdi');
+chk((await call('/api/kv?k=state', {}, 'xato')).status === 401, 'noto‘g‘ri parol o‘tib ketdi');
+chk((await call('/api/kv?k=boshqa')).status === 400, 'ruxsat etilmagan kalit');
+chk((await call('/api/login', { method: 'POST', body: JSON.stringify({ key: 'test1234' }) }, '')).status === 200, 'to‘g‘ri parol rad etildi');
+chk((await call('/api/login', { method: 'POST', body: JSON.stringify({ key: 'x' }) }, '')).status === 401, 'noto‘g‘ri login qabul qilindi');
+r = await (await call('/api/kv?k=state')).json(); chk(r.v === null && r.rev === 0, 'bo‘sh holat noto‘g‘ri');
+let w = await call('/api/kv?k=state&rev=0', { method: 'PUT', body: JSON.stringify({ v: { rounds: [1] } }) }); chk(w.status === 200 && (await w.json()).rev === 1, '1-yozuv');
+w = await call('/api/kv?k=state&rev=0', { method: 'PUT', body: JSON.stringify({ v: { rounds: [2] } }) }); chk(w.status === 409, 'eski versiya bilan yozish to‘qnashuvi aniqlanmadi');
+w = await call('/api/kv?k=state&rev=1', { method: 'PUT', body: JSON.stringify({ v: { rounds: [3] } }) }); chk(w.status === 200, '2-yozuv');
+r = await (await call('/api/kv?k=state')).json(); chk(r.rev === 2 && r.v.rounds[0] === 3, 'o‘qish noto‘g‘ri');
+await call('/api/kv?k=state', { method: 'DELETE' }); r = await (await call('/api/kv?k=state')).json(); chk(r.v === null && r.rev === 0, 'o‘chirish ishlamadi');
+chk((await call('/api/upload', { method: 'POST', body: JSON.stringify({ type: 'blob.generate-client-token', payload: { pathname: 'media/abcdef123456', clientPayload: 'xato', multipart: false } }) }, '')).status === 400, 'parolsiz yuklash tokeni berildi');
+chk((await call('/api/media', {}, '')).status === 401, 'media parolsiz ochiq');
+srv.close(); console.log(JSON.stringify({ problems: bad }, null, 1)); process.exit(bad.length ? 1 : 0);
