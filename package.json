@@ -1,0 +1,20 @@
+{
+  "name": "maroqandquiz",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MaroqAndQuiz — intellektual viktorina platformasi (Vercel: statik sayt + API, Upstash Redis + Vercel Blob)",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node tests/run.mjs",
+    "start": "npx --yes serve public -l 3000",
+    "dev": "npx --yes serve public -l 3000",
+    "dev:cloud": "node tests/dev-server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.0.0"
+  }
+}
